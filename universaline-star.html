@@ -1362,6 +1362,20 @@ const Assistant = (() => {
     return "Ich habe dich gehört, Phoenix. Ich lasse deine Worte durch die Sterne wandern und halte alles für dich bereit.";
   }
 
+  async function askBrain(text){
+    try{
+      const res = await fetch("https://universalphnx.app.n8n.cloud/webhook/jarvis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text })
+      });
+      const data = await res.json();
+      return data.reply || reply(text);
+    }catch(err){
+      return reply(text);
+    }
+  }
+
   function typeOut(row, full){
     return new Promise(res=>{ row.classList.add("typing"); let i=0;
       const iv=setInterval(()=>{ i++; row.querySelector(".m").textContent=full.slice(0,i);
@@ -1379,7 +1393,7 @@ const Assistant = (() => {
     Feeds.think("Ich lasse „"+text.slice(0,36)+"“ durch die Sterne klingen…");
     $("#core-sub").textContent="✦ VERBUNDEN · VERARBEITE";
     await new Promise(r=>setTimeout(r,rnd(550,1150)));
-    const answer=reply(text);
+    const answer=await askBrain(text);
     Voice.set("speaking"); Sound.voice();
     const row=Feeds.chat({who:"ai",text:""});
     await typeOut(row,answer);
