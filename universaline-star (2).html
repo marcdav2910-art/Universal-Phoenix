@@ -1544,7 +1544,7 @@ function detectAndFocus(text){
 const Assistant = (() => {
   const cmd=$("#cmd"), send=$("#send"), mic=$("#mic");
   /* ---- Konfiguration ---- */
-  const N8N_URL = "https://universalphnx.app.n8n.cloud/assistant/1b68b43e-52cd-4bb2-893e-8b0bedd608eb";
+  const N8N_URL = "https://universalphnx.app.n8n.cloud/webhook/jarvis";
   // Jede Sitzung bekommt eine eigene Session-ID → n8n merkt sich den Kontext
   const SESSION_ID = "phoenix-" + Math.random().toString(36).slice(2,10);
 
@@ -1570,13 +1570,13 @@ const Assistant = (() => {
     // Antwort enthält: { output } oder { text } oder { response }
     const res = await fetch(N8N_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chatInput: text, sessionId: SESSION_ID })
+      headers: { "Content-Type": "application/json", "X-JARVIS-Token": "js_cfdfbfc7fbae6c961d9d1b87c76b811a2018ccd1cc3d525d" },
+      body: JSON.stringify({ message: text, chatInput: text, sessionId: SESSION_ID })
     });
     if(!res.ok) throw new Error(`n8n HTTP ${res.status}`);
     const data = await res.json();
     // Verschiedene n8n-Ausgabe-Formate abfangen
-    const answer = data.output ?? data.text ?? data.response ?? data.message ?? data.answer
+    const answer = data.reply ?? data.output ?? data.text ?? data.response ?? data.message ?? data.answer
                    ?? (Array.isArray(data) ? data[0]?.output ?? data[0]?.text : null)
                    ?? null;
     if(!answer) throw new Error("Keine Antwort im n8n-Response");
