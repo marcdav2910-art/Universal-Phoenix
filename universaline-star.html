@@ -1366,7 +1366,7 @@ const Assistant = (() => {
     try{
       const res = await fetch("https://universalphnx.app.n8n.cloud/webhook/jarvis", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-JARVIS-Token": "js_cfdfbfc7fbae6c961d9d1b87c76b811a2018ccd1cc3d525d" },
         body: JSON.stringify({ message: text })
       });
       const data = await res.json();
