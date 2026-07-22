@@ -1548,6 +1548,66 @@ const Assistant = (() => {
   // Jede Sitzung bekommt eine eigene Session-ID → n8n merkt sich den Kontext
   const SESSION_ID = "phoenix-" + Math.random().toString(36).slice(2,10);
 
+  /* ---- Universaline Voice I/O: echtes Mikrofon -> n8n ---- */
+  const VOICE_URL = "https://universalphnx.app.n8n.cloud/webhook/universaline/voice";
+  const VOICE_TOKEN = "js_cfdfbfc7fbae6c961d9d1b87c76b811a2018ccd1cc3d525d";
+  window.VoiceIO = (function(){
+    let rec=null, chunks=[], stream=null, recording=false, currentAudio=null, activeReqId=null;
+    const micEl = document.getElementById("mic");
+    function status(t){ const s=document.getElementById("voice-status"); if(s) s.textContent=t; }
+    function stopPlayback(){ if(currentAudio){ try{ currentAudio.pause(); }catch(e){} currentAudio=null; } }
+    function blobToB64(b){ return new Promise(function(res,rej){ var r=new FileReader(); r.onloadend=function(){ var s=String(r.result||""); res(s.slice(s.indexOf(",")+1)); }; r.onerror=rej; r.readAsDataURL(b); }); }
+    async function start(){
+      stopPlayback();
+      if(!navigator.mediaDevices || !window.MediaRecorder){ status("Mikrofon nicht unterstuetzt"); return; }
+      try{ stream = await navigator.mediaDevices.getUserMedia({audio:true}); }
+      catch(e){ try{ Notify.show("Mikrofon blockiert","Bitte Mikrofon-Zugriff erlauben.","warn"); }catch(x){} status("Mikrofon blockiert"); return; }
+      chunks=[]; var mime="audio/webm";
+      if(MediaRecorder.isTypeSupported){ if(MediaRecorder.isTypeSupported("audio/webm")) mime="audio/webm"; else if(MediaRecorder.isTypeSupported("audio/mp4")) mime="audio/mp4"; else if(MediaRecorder.isTypeSupported("audio/ogg")) mime="audio/ogg"; }
+      rec = new MediaRecorder(stream, {mimeType:mime});
+      rec.ondataavailable = function(e){ if(e.data && e.data.size>0) chunks.push(e.data); };
+      rec.onstop = function(){ send(mime); };
+      rec.start(); recording=true;
+      if(micEl) micEl.classList.add("listening");
+      try{ Voice.set("listening"); }catch(e){}
+      status("Universaline hoert zu - nochmal tippen zum Senden");
+    }
+    function stop(){
+      if(rec && recording){ recording=false; try{ rec.stop(); }catch(e){} }
+      if(stream){ stream.getTracks().forEach(function(t){ t.stop(); }); stream=null; }
+      if(micEl) micEl.classList.remove("listening");
+    }
+    async function send(mime){
+      var blob = new Blob(chunks, {type:mime});
+      if(!blob.size){ status("Universaline bereit"); return; }
+      status("Transkribiere ..."); try{ Voice.set("thinking"); }catch(e){}
+      var reqId = "req-"+Date.now()+"-"+Math.random().toString(36).slice(2,7); activeReqId = reqId;
+      var data=null;
+      try{
+        var b64 = await blobToB64(blob);
+        var res = await fetch(VOICE_URL, { method:"POST", headers:{ "Content-Type":"application/json", "x-jarvis-token":VOICE_TOKEN }, body: JSON.stringify({ audio:b64, audioMimeType:mime, sessionId:SESSION_ID, requestId:reqId, language:"de", voiceEnabled:true, source:"universaline-star-interface" }) });
+        data = await res.json();
+      }catch(e){ status("Universaline bereit"); try{ Notify.show("Verbindung","Sprachdienst nicht erreichbar.","warn"); }catch(x){} try{ Voice.set("idle"); }catch(x){} return; }
+      if(activeReqId !== reqId) return;
+      if(!data || data.success===false){ var msg=(data && (data.fallbackText||data.message))||"Ich konnte dich leider nicht verstehen."; try{ Feeds.chat({who:"ai", text:msg}); }catch(e){} status("Universaline bereit"); try{ Voice.set("idle"); }catch(x){} return; }
+      if(data.transcription){ try{ Feeds.chat({who:"you", text:data.transcription}); }catch(e){} }
+      var answer = data.message || data.spokenText || "";
+      if(answer){ try{ Feeds.chat({who:"ai", text:answer}); }catch(e){} }
+      if(data.audio && data.audio.available && data.audio.data){
+        try{ stopPlayback();
+          var a = new Audio("data:"+(data.audio.mimeType||"audio/mpeg")+";base64,"+data.audio.data);
+          currentAudio = a; if(micEl) micEl.classList.add("speaking"); try{ Voice.set("speaking"); }catch(e){}
+          a.onended = function(){ if(micEl) micEl.classList.remove("speaking"); try{ Voice.set("idle"); }catch(e){} currentAudio=null; };
+          a.play().catch(function(){ if(micEl) micEl.classList.remove("speaking"); try{ Voice.set("idle"); }catch(e){} });
+        }catch(e){ try{ Voice.set("idle"); }catch(x){} }
+      } else { try{ Voice.set("idle"); }catch(e){} }
+      status("Universaline bereit");
+    }
+    function toggle(){ try{ Sound.click(); }catch(e){} if(recording){ stop(); } else { start(); } }
+    return { toggle:toggle, stop:stop, stopPlayback:stopPlayback };
+  })();
+
+
   let busy = false;
 
   /* ---- Lokaler Fallback (wenn n8n nicht erreichbar) ---- */
@@ -1637,7 +1697,7 @@ const Assistant = (() => {
 
   /* ---- Mikrofon (simuliertes Zuhören) ---- */
   let listening = false;
-  mic.addEventListener("click", () => {
+  mic.addEventListener("click", () => { if(window.VoiceIO){ VoiceIO.toggle(); return; }
     Sound.click(); listening = !listening;
     mic.classList.toggle("listening", listening);
     $("#voice-status").textContent = listening ? "\u2b50 Universaline Listening" : "\u2b50 Universaline bereit";
