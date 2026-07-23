@@ -1770,12 +1770,9 @@ const Assistant = (() => {
   function urInline(t){
     var s = urEscape(t);
     var inlineRe = new RegExp(UR_BT + "([^" + UR_BT + "]+)" + UR_BT, "g");
-    s = s.replace(inlineRe, "<code class=\"ur-inline\">const SESSION_ID = "phoenix-" + Math.random().toString(36).slice(2,10);
-</code>");
-    s = s.replace(/\*\*([^*]+)\*\*/g, "<b>const SESSION_ID = "phoenix-" + Math.random().toString(36).slice(2,10);
-</b>");
-    s = s.replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, "<a href=\"$2\" target=\"_blank\" style=\"color:#c9b0ff\">const SESSION_ID = "phoenix-" + Math.random().toString(36).slice(2,10);
-</a>");
+    s = s.replace(inlineRe, "<code class=\"ur-inline\">$1</code>");
+    s = s.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+    s = s.replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, "<a href=\"$2\" target=\"_blank\" style=\"color:#c9b0ff\">$1</a>");
     s = s.replace(/\n/g, "<br>");
     return s;
   }
