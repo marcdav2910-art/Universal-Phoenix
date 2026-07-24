@@ -1811,17 +1811,23 @@ const Assistant = (() => {
     async function send(mime){
       var blob = new Blob(chunks, {type:mime});
       if(!blob.size){ status("Universaline bereit"); return; }
-      status("Transkribiere ..."); try{ Voice.set("thinking"); }catch(e){}
       var reqId = "req-"+Date.now()+"-"+Math.random().toString(36).slice(2,7); activeReqId = reqId;
+      var stageTimers=[];
+      function clearStages(){ for(var i=0;i<stageTimers.length;i++){ clearTimeout(stageTimers[i]); } stageTimers=[]; }
+      function stageAt(txt,ms){ stageTimers.push(setTimeout(function(){ if(activeReqId===reqId) status(txt); }, ms)); }
+      status("Transkribiere ..."); try{ Voice.set("thinking"); }catch(e){}
+      stageAt("Universaline denkt ...", 2500);
+      stageAt("Formuliere Antwort ...", 6000);
+      stageAt("Spreche gleich ...", 9500);
       var data=null;
       try{
         var b64 = await blobToB64(blob);
         var res = await fetch(VOICE_URL, { method:"POST", headers:{ "Content-Type":"application/json", "x-jarvis-token":VOICE_TOKEN }, body: JSON.stringify({ audio:b64, audioMimeType:mime, sessionId:SESSION_ID, requestId:reqId, language:"de", voiceEnabled:true, source:"universaline-star-interface" }) });
         data = await res.json();
-      }catch(e){ status("Universaline bereit"); try{ Notify.show("Verbindung","Sprachdienst nicht erreichbar.","warn"); }catch(x){} try{ Voice.set("idle"); }catch(x){} return; }
-      if(activeReqId !== reqId) return;
-      if(!data || data.success===false){ var msg=(data && (data.fallbackText||data.message))||"Ich konnte dich leider nicht verstehen."; try{ Feeds.chat({who:"ai", text:msg}); }catch(e){} status("Universaline bereit"); try{ Voice.set("idle"); }catch(x){} return; }
-      if(data.transcription){ try{ Feeds.chat({who:"you", text:data.transcription}); }catch(e){} }
+      }catch(e){ clearStages(); status("Universaline bereit"); try{ Notify.show("Verbindung","Sprachdienst nicht erreichbar.","warn"); }catch(x){} try{ Voice.set("idle"); }catch(x){} return; }
+      if(activeReqId !== reqId){ clearStages(); return; }
+      if(!data || data.success===false){ clearStages(); var msg=(data && (data.fallbackText||data.message))||"Ich konnte dich leider nicht verstehen."; try{ Feeds.chat({who:"ai", text:msg}); }catch(e){} status("Universaline bereit"); try{ Voice.set("idle"); }catch(x){} return; }
+      clearStages(); if(data.transcription){ try{ Feeds.chat({who:"you", text:data.transcription}); }catch(e){} }
       var answer = data.message || data.spokenText || "";
       if(answer){ try{ Feeds.chat({who:"ai", text:answer}); }catch(e){} }
       if(data.audio && data.audio.available && data.audio.data){
